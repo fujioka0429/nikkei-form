@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>注文フォーム</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  :root{
+    --bg: var(--tg-theme-bg-color, #ffffff);
+    --fg: var(--tg-theme-text-color, #1a1a1a);
+    --sub: var(--tg-theme-hint-color, #8a8a8a);
+    --card: var(--tg-theme-secondary-bg-color, #f2f3f5);
+    --accent: var(--tg-theme-button-color, #2f7de1);
+    --accent-fg: var(--tg-theme-button-text-color, #ffffff);
+    --buy: #d64545; --sell: #2a72d4; --warn: #c27a00;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.45 -apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP",sans-serif;padding:12px 16px 96px}
+  .top{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:4px}
+  .top b{font-size:16px}
+  .px{font-size:22px;font-weight:700;font-variant-numeric:tabular-nums}
+  .meta{color:var(--sub);font-size:12px;margin-bottom:12px}
+  .stale{color:var(--warn);font-weight:600}
+  .card{background:var(--card);border-radius:12px;padding:12px;margin-bottom:10px}
+  .lbl{font-size:12px;color:var(--sub);margin-bottom:6px;display:flex;justify-content:space-between}
+  .seg{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .seg button{border:2px solid transparent;border-radius:10px;padding:12px 0;font-size:17px;font-weight:700;background:var(--bg);color:var(--fg)}
+  .seg button.on.buy{background:var(--buy);color:#fff}
+  .seg button.on.sell{background:var(--sell);color:#fff}
+  .seg button.on.neutral{background:var(--accent);color:var(--accent-fg)}
+  .row{display:flex;align-items:center;gap:8px}
+  .step{width:44px;height:44px;border-radius:10px;border:none;background:var(--bg);color:var(--fg);font-size:22px;font-weight:600}
+  input[type=number]{flex:1;min-width:0;height:44px;border-radius:10px;border:1px solid transparent;background:var(--bg);color:var(--fg);font-size:18px;text-align:center;font-variant-numeric:tabular-nums}
+  input:disabled{opacity:.4}
+  .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+  .chips button{border:none;border-radius:16px;padding:6px 12px;background:var(--bg);color:var(--fg);font-size:13px}
+  .chips button.on{background:var(--accent);color:var(--accent-fg)}
+  .sw{display:flex;align-items:center;justify-content:space-between}
+  .sw input{width:22px;height:22px}
+  .sum{font-size:14px}
+  .sum div{display:flex;justify-content:space-between;padding:2px 0}
+  .sum span:last-child{font-variant-numeric:tabular-nums;font-weight:600}
+  .note{font-size:12px;color:var(--sub);margin-top:8px}
+  .err{color:var(--buy);font-size:13px;margin-top:6px;min-height:1em}
+  #fallback{display:none;width:100%;margin-top:6px;padding:14px;border:none;border-radius:12px;background:var(--accent);color:var(--accent-fg);font-size:16px;font-weight:700}
+</style>
+</head>
+<body>
+  <div class="top"><b id="name">日経225mini</b><span class="px" id="px">—</span></div>
+  <div class="meta" id="meta">価格は bot から受け取った時点のものです</div>
+
+  <div class="card">
+    <div class="lbl">売買</div>
+    <div class="seg" id="side">
+      <button data-v="買" class="buy">買い</button>
+      <button data-v="売" class="sell">売り</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="lbl"><span>枚数</span><span id="lotmax"></span></div>
+    <div class="row">
+      <button class="step" data-t="lots" data-d="-1">−</button>
+      <input type="number" id="lots" value="1" min="1" inputmode="numeric">
+      <button class="step" data-t="lots" data-d="1">＋</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="lbl">注文の方法</div>
+    <div class="seg" id="kind">
+      <button data-v="mkt" class="neutral on">成行</button>
+      <button data-v="lmt" class="neutral">指値</button>
+    </div>
+    <div class="row" style="margin-top:8px">
+      <button class="step" data-t="limit" data-d="-5">−</button>
+      <input type="number" id="limit" step="5" inputmode="numeric" disabled>
+      <button class="step" data-t="limit" data-d="5">＋</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="lbl"><span>損切りの幅（円）</span><span id="r5note"></span></div>
+    <div class="row">
+      <button class="step" data-t="stop" data-d="-50">−</button>
+      <input type="number" id="stop" value="300" step="50" inputmode="numeric">
+      <button class="step" data-t="stop" data-d="50">＋</button>
+    </div>
+    <div class="chips" id="stopchips"></div>
+  </div>
+
+  <div class="card">
+    <div class="sw"><span>損切りを追従させる</span><input type="checkbox" id="trailOn" checked></div>
+    <div id="trailBox">
+      <div class="lbl" style="margin-top:10px">追従の幅（最良値から何円離すか）</div>
+      <div class="row">
+        <button class="step" data-t="trail" data-d="-50">−</button>
+        <input type="number" id="trail" value="300" step="50" inputmode="numeric">
+        <button class="step" data-t="trail" data-d="50">＋</button>
+      </div>
+      <div class="lbl" style="margin-top:10px">刻み（何円有利になるごとに動かすか）</div>
+      <div class="row">
+        <button class="step" data-t="stepw" data-d="-25">−</button>
+        <input type="number" id="stepw" value="100" step="25" inputmode="numeric">
+        <button class="step" data-t="stepw" data-d="25">＋</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="lbl">利確の幅（円・0でなし）</div>
+    <div class="row">
+      <button class="step" data-t="tp" data-d="-50">−</button>
+      <input type="number" id="tp" value="0" step="50" inputmode="numeric">
+      <button class="step" data-t="tp" data-d="50">＋</button>
+    </div>
+  </div>
+
+  <div class="card sum" id="sum"></div>
+  <div class="err" id="err"></div>
+  <div class="note">送るとボットから確認のメッセージが届きます。発注はまだされません。内容を確かめて「k」を送ると発注されます（2分以内）。</div>
+  <button id="fallback">確認へ進む</button>
+
+<script>
+(function(){
+  const tg = window.Telegram && window.Telegram.WebApp;
+  const q = new URLSearchParams(location.search);
+  const px = +q.get("px") || 0, r5 = +q.get("r5") || 0, maxLots = +q.get("max") || 5;
+  const mult = +q.get("mult") || 100, ts = +q.get("ts") || 0;
+  const $ = id => document.getElementById(id);
+  const yen = n => Math.round(n).toLocaleString("ja-JP");
+  const r50 = n => Math.max(50, Math.round(n / 50) * 50);
+
+  if (q.get("name")) $("name").textContent = q.get("name");
+  $("px").textContent = px ? yen(px) : "—";
+  $("lotmax").textContent = "上限 " + maxLots + "枚";
+  if (ts) {
+    const mins = Math.floor((Date.now() / 1000 - ts) / 60);
+    const t = new Date(ts * 1000);
+    const hm = t.getHours() + ":" + String(t.getMinutes()).padStart(2, "0");
+    $("meta").innerHTML = "価格は " + hm + " 時点" + (mins >= 5 ? '　<span class="stale">' + mins + '分前の値。新しくするには「フォーム」と送り直す</span>' : "");
+  }
+  if (px) $("limit").value = Math.round(px / 5) * 5;
+
+  // 損切り幅の候補：直近の5分ごとの値幅の平均をもとに
+  const chips = r5 ? [r50(r5), r50(r5 * 1.5), r50(r5 * 2), r50(r5 * 3)] : [150, 200, 300, 400];
+  if (r5) $("r5note").textContent = "直近の5分の値幅 平均 " + yen(r5) + "円";
+  [...new Set(chips)].forEach(v => {
+    const b = document.createElement("button"); b.textContent = yen(v) + "円";
+    b.onclick = () => { $("stop").value = v; if ($("trailOn").checked) $("trail").value = v; render(); };
+    $("stopchips").appendChild(b);
+  });
+
+  let side = null, kind = "mkt";
+  document.querySelectorAll("#side button").forEach(b => b.onclick = () => {
+    side = b.dataset.v;
+    document.querySelectorAll("#side button").forEach(x => x.classList.toggle("on", x === b));
+    haptic(); render();
+  });
+  document.querySelectorAll("#kind button").forEach(b => b.onclick = () => {
+    kind = b.dataset.v;
+    document.querySelectorAll("#kind button").forEach(x => x.classList.toggle("on", x === b));
+    $("limit").disabled = kind !== "lmt"; haptic(); render();
+  });
+  document.querySelectorAll(".step").forEach(b => b.onclick = () => {
+    const el = $(b.dataset.t); el.value = (+el.value || 0) + (+b.dataset.d); haptic(); render();
+  });
+  ["lots", "limit", "stop", "trail", "stepw", "tp"].forEach(id => $(id).addEventListener("input", render));
+  $("trailOn").onchange = () => { $("trailBox").style.display = $("trailOn").checked ? "" : "none"; render(); };
+
+  function haptic(){ try { tg && tg.HapticFeedback.selectionChanged(); } catch(e){} }
+
+  function read(){
+    const o = {
+      v: 1, side,
+      lots: Math.floor(+$("lots").value),
+      limit: kind === "lmt" ? Math.round((+$("limit").value) / 5) * 5 : null,
+      stop: Math.round(+$("stop").value),
+      trail: $("trailOn").checked ? Math.round(+$("trail").value) : 0,
+      step: $("trailOn").checked ? Math.round(+$("stepw").value) : 0,
+      tp: Math.round(+$("tp").value) || 0
+    };
+    const e = [];
+    if (!o.side) e.push("買いか売りを選んでください");
+    if (!(o.lots >= 1 && o.lots <= maxLots)) e.push("枚数は1〜" + maxLots + "枚");
+    if (kind === "lmt" && !(o.limit > 1000)) e.push("指値の値段を入れてください");
+    if (!(o.stop >= 5 && o.stop < 5000)) e.push("損切りの幅は5〜4,999円");
+    if (o.trail && !(o.trail >= 5 && o.trail < 5000)) e.push("追従の幅は5〜4,999円");
+    if (o.trail && !(o.step >= 5 && o.step < 5000)) e.push("刻みは5〜4,999円");
+    if (o.tp && !(o.tp >= 5 && o.tp < 5000)) e.push("利確の幅は5〜4,999円（0でなし）");
+    return [o, e];
+  }
+
+  function render(){
+    const [o, e] = read();
+    const base = o.limit || px, s = o.side === "買" ? 1 : o.side === "売" ? -1 : 0;
+    const L = [];
+    L.push(["注文", o.side ? ((o.side === "買" ? "買い " : "売り ") + (o.lots || "?") + "枚・" + (o.limit ? "指値 " + yen(o.limit) : "成行")) : "—"]);
+    if (base && s) {
+      L.push(["損切りの価格（目安）", yen(base - s * o.stop)]);
+      if (o.tp) L.push(["利確の価格（目安）", yen(base + s * o.tp)]);
+    }
+    L.push(["損切りに当たった時の損失（目安）", o.lots && o.stop ? "−" + yen(o.stop * mult * o.lots) + "円" : "—"]);
+    L.push(["追従", o.trail ? (yen(o.trail) + "円幅・" + yen(o.step) + "円ごと") : "なし"]);
+    $("sum").innerHTML = L.map(([a, b]) => "<div><span>" + a + "</span><span>" + b + "</span></div>").join("");
+    $("err").textContent = e.join("　");
+    if (tg && tg.MainButton) {
+      if (e.length) tg.MainButton.disable(); else tg.MainButton.enable();
+    }
+  }
+
+  function submit(){
+    const [o, e] = read();
+    if (e.length) { $("err").textContent = e.join("　"); return; }
+    if (tg && tg.sendData && tg.initData !== undefined) { tg.sendData(JSON.stringify(o)); }
+    else { $("err").textContent = "Telegram の中で開いてください（ボットに「フォーム」と送ると出るボタンから）"; }
+  }
+
+  if (tg && tg.MainButton) {
+    tg.ready(); tg.expand();
+    tg.MainButton.setText("確認へ進む（まだ発注されません）");
+    tg.MainButton.onClick(submit);
+    tg.MainButton.show();
+  }
+  if (!tg || !tg.initDataUnsafe || !tg.platform || tg.platform === "unknown") {
+    $("fallback").style.display = "block"; $("fallback").onclick = submit;
+  }
+  render();
+})();
+</script>
+</body>
+</html>
