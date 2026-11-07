@@ -119,7 +119,7 @@
 
   <div class="card sum" id="sum"></div>
   <div class="err" id="err"></div>
-  <div class="note">送るとボットから確認のメッセージが届きます。発注はまだされません。内容を確かめて「k」を送ると発注されます（2分以内）。</div>
+  <div class="note">送るとボットから確認のメッセージが届きます。発注はまだされません。内容を確かめて「確認・発注」を押すと発注されます（2分以内）。</div>
   <button id="fallback">確認へ進む</button>
 
 <script>
@@ -139,7 +139,12 @@
     const mins = Math.floor((Date.now() / 1000 - ts) / 60);
     const t = new Date(ts * 1000);
     const hm = t.getHours() + ":" + String(t.getMinutes()).padStart(2, "0");
-    $("meta").innerHTML = "価格は " + hm + " 時点" + (mins >= 5 ? '　<span class="stale">' + mins + '分前の値。新しくするには「フォーム」と送り直す</span>' : "");
+    const md = (t.getMonth() + 1) + "/" + t.getDate() + " ";
+    if (q.get("src") === "last") {
+      $("meta").innerHTML = '<span class="stale">取引時間外：最後の値段（' + md + hm + '）</span>　指値の初期値に使っています';
+    } else {
+      $("meta").innerHTML = "現在値は " + hm + " 時点" + (mins >= 5 ? '　<span class="stale">' + mins + '分前の値。新しくするには「f」と送り直す</span>' : "");
+    }
   }
   if (px) $("limit").value = Math.round(px / 5) * 5;
 
@@ -214,7 +219,7 @@
     const [o, e] = read();
     if (e.length) { $("err").textContent = e.join("　"); return; }
     if (tg && tg.sendData && tg.initData !== undefined) { tg.sendData(JSON.stringify(o)); }
-    else { $("err").textContent = "Telegram の中で開いてください（ボットに「フォーム」と送ると出るボタンから）"; }
+    else { $("err").textContent = "Telegram の中で開いてください（ボットに「f」と送ると出るボタンから）"; }
   }
 
   if (tg && tg.MainButton) {
