@@ -43,6 +43,7 @@
   .sum span:last-child{font-variant-numeric:tabular-nums;font-weight:600}
   .note{font-size:12px;color:var(--sub);margin-top:8px}
   .err{color:var(--buy);font-size:13px;margin-top:6px;min-height:1em}
+  .warnbox{border:1.5px solid var(--warn);color:var(--warn);background:var(--card);border-radius:10px;padding:10px 12px;font-size:13px;font-weight:600;margin-bottom:6px}
   #fallback{display:none;width:100%;margin-top:6px;padding:14px;border:none;border-radius:12px;background:var(--accent);color:var(--accent-fg);font-size:16px;font-weight:700}
 </style>
 </head>
@@ -118,6 +119,7 @@
   </div>
 
   <div class="card sum" id="sum"></div>
+  <div class="warnbox" id="warn" style="display:none"></div>
   <div class="err" id="err"></div>
   <div class="note">送るとボットから確認のメッセージが届きます。発注はまだされません。内容を確かめて「確認・発注」を押すと発注されます（2分以内）。</div>
   <button id="fallback">確認へ進む</button>
@@ -201,14 +203,23 @@
     const [o, e] = read();
     const base = o.limit || px, s = o.side === "買" ? 1 : o.side === "売" ? -1 : 0;
     const L = [];
+    // 追従の幅が損切りの幅より狭いと、約定直後に損切りが「建値−追従の幅」まで詰められる
+    const narrowed = o.trail && o.stop > o.trail;
+    const eff = narrowed ? o.trail : o.stop;
     L.push(["注文", o.side ? ((o.side === "買" ? "買い " : "売り ") + (o.lots || "?") + "枚・" + (o.limit ? "指値 " + yen(o.limit) : "成行")) : "—"]);
     if (base && s) {
-      L.push(["損切りの価格（目安）", yen(base - s * o.stop)]);
+      L.push(["損切りの価格（目安）", yen(base - s * eff)]);
       if (o.tp) L.push(["利確の価格（目安）", yen(base + s * o.tp)]);
     }
-    L.push(["損切りに当たった時の損失（目安）", o.lots && o.stop ? "−" + yen(o.stop * mult * o.lots) + "円" : "—"]);
+    L.push(["損切りに当たった時の損失（目安）", o.lots && eff ? "−" + yen(eff * mult * o.lots) + "円" : "—"]);
     L.push(["追従", o.trail ? (yen(o.trail) + "円幅・" + yen(o.step) + "円ごと") : "なし"]);
     $("sum").innerHTML = L.map(([a, b]) => "<div><span>" + a + "</span><span>" + b + "</span></div>").join("");
+    $("warn").textContent = narrowed
+      ? "注意：損切りの幅（" + yen(o.stop) + "円）が追従の幅（" + yen(o.trail) + "円）より大きいため、約定した直後に損切りが "
+        + yen(o.trail) + "円幅に詰められます。実際の損切りは " + yen(o.trail) + "円幅です。"
+        + yen(o.stop) + "円で守りたい時は、追従の幅を " + yen(o.stop) + "円以上にしてください。"
+      : "";
+    $("warn").style.display = narrowed ? "" : "none";
     $("err").textContent = e.join("　");
     if (tg && tg.MainButton) {
       if (e.length) tg.MainButton.disable(); else tg.MainButton.enable();
