@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<title>注文フォーム</title>
+<title>注文・設定フォーム</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <style>
   :root{
@@ -44,10 +44,34 @@
   .note{font-size:12px;color:var(--sub);margin-top:8px}
   .err{color:var(--buy);font-size:13px;margin-top:6px;min-height:1em}
   .warnbox{border:1.5px solid var(--warn);color:var(--warn);background:var(--card);border-radius:10px;padding:10px 12px;font-size:13px;font-weight:600;margin-bottom:6px}
+  .tabs{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;background:var(--card);border-radius:12px;padding:4px;margin-bottom:12px}
+  .tabs button{border:none;border-radius:9px;padding:9px 0;font-size:15px;font-weight:700;background:transparent;color:var(--sub)}
+  .tabs button.on{background:var(--bg);color:var(--fg);box-shadow:0 1px 3px rgba(0,0,0,.12)}
+  .srow{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 0}
+  .srow+.srow{border-top:1px solid rgba(128,128,128,.15)}
+  .srow .nm{flex:1;min-width:0;font-size:14px}
+  .srow .nm small{display:block;color:var(--sub);font-size:11px}
+  .srow .row{flex:none;width:156px;gap:6px}
+  .srow input[type=number]{flex:none;width:64px;height:40px;font-size:17px}
+  .srow .was{display:block}
+  .srow .row.wide{width:186px}
+  .srow .row.wide input[type=number]{width:94px;font-size:16px}
+  .srow .step{width:40px;height:40px}
+  .chg{background:rgba(194,122,0,.14)!important;border-color:var(--warn)!important}
+  .was{color:var(--warn);font-size:11px;font-weight:600}
+  .diff div{padding:2px 0;font-size:14px}
+  .diff b{color:var(--warn)}
+  .danger{width:100%;margin-top:4px;padding:12px;border:1.5px solid var(--buy);border-radius:12px;background:transparent;color:var(--buy);font-size:15px;font-weight:700}
+  .pick{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+  .pick button{border:none;border-radius:16px;padding:7px 12px;background:var(--card);color:var(--fg);font-size:13px;font-weight:600}
+  .pick button.on{background:var(--accent);color:var(--accent-fg)}
+  .badge{display:inline-block;font-size:11px;font-weight:700;border-radius:6px;padding:1px 6px;margin-left:6px;color:#fff}
   #fallback{display:none;width:100%;margin-top:6px;padding:14px;border:none;border-radius:12px;background:var(--accent);color:var(--accent-fg);font-size:16px;font-weight:700}
 </style>
 </head>
 <body>
+  <div class="tabs" id="tabs"><button data-t="o">注文</button><button data-t="m">注文中</button><button data-t="s">設定</button></div>
+<div id="pageO">
   <div class="top"><b id="name">日経225mini</b><span class="px" id="px">—</span></div>
   <div class="meta" id="meta">価格は bot から受け取った時点のものです</div>
 
@@ -122,33 +146,153 @@
   <div class="warnbox" id="warn" style="display:none"></div>
   <div class="err" id="err"></div>
   <div class="note">送るとボットから確認のメッセージが届きます。発注はまだされません。内容を確かめて「確認・発注」を押すと発注されます（2分以内）。</div>
+</div>
+
+<div id="pageM" style="display:none">
+  <div class="top"><b>注文中（手動）</b><span class="px" id="mpx">—</span></div>
+  <div class="meta" id="mmeta"></div>
+  <div id="mnone" class="card" style="display:none;color:var(--sub)">手動の建玉・約定待ちの指値はありません。</div>
+  <div class="pick" id="mpick"></div>
+  <div id="mbody" style="display:none">
+    <div class="card">
+      <div style="font-size:16px;font-weight:700" id="mhead"></div>
+      <div class="meta" style="margin:4px 0 0" id="msub"></div>
+    </div>
+
+    <div class="card" id="mlimitBox">
+      <div class="lbl"><span>指値の値段</span><span class="was" id="w_mlimit"></span></div>
+      <div class="row">
+        <button class="step" data-t="mlimit" data-d="-5">−</button>
+        <input type="number" id="mlimit" step="5" inputmode="numeric">
+        <button class="step" data-t="mlimit" data-d="5">＋</button>
+      </div>
+      <div class="chips" id="mlimitchips"></div>
+    </div>
+
+    <div class="card">
+      <div class="lbl"><span id="mstopLbl">損切り</span><span class="was" id="w_mstop"></span></div>
+      <div class="row">
+        <button class="step" data-t="mstop" data-d="-5" id="mstopMinus">−</button>
+        <input type="number" id="mstop" inputmode="numeric">
+        <button class="step" data-t="mstop" data-d="5" id="mstopPlus">＋</button>
+      </div>
+      <div class="chips" id="mstopchips"></div>
+    </div>
+
+    <div class="card">
+      <div class="sw"><span>損切りを追従させる<span class="was" id="w_mtrailOn"></span></span><input type="checkbox" id="mtrailOn"></div>
+      <div id="mtrailBox">
+        <div class="lbl" style="margin-top:10px"><span>追従の幅（最良値から何円離すか）</span><span class="was" id="w_mtrail"></span></div>
+        <div class="row">
+          <button class="step" data-t="mtrail" data-d="-50">−</button>
+          <input type="number" id="mtrail" step="50" inputmode="numeric">
+          <button class="step" data-t="mtrail" data-d="50">＋</button>
+        </div>
+        <div class="lbl" style="margin-top:10px"><span>刻み（何円有利になるごとに動かすか）</span><span class="was" id="w_mstep"></span></div>
+        <div class="row">
+          <button class="step" data-t="mstepw" data-d="-25">−</button>
+          <input type="number" id="mstepw" step="25" inputmode="numeric">
+          <button class="step" data-t="mstepw" data-d="25">＋</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="lbl"><span id="mtpLbl">利確</span><span class="was" id="w_mtp"></span></div>
+      <div class="row">
+        <button class="step" data-t="mtp" data-d="-50">−</button>
+        <input type="number" id="mtp" inputmode="numeric">
+        <button class="step" data-t="mtp" data-d="50">＋</button>
+      </div>
+    </div>
+
+    <div class="card diff" id="mdiff"></div>
+    <div class="warnbox" id="mwarn" style="display:none"></div>
+    <div class="err" id="merr"></div>
+    <button class="danger" id="mdanger"></button>
+    <div class="note">変更・決済・取消は、送るとすぐ実行されます（「k」の確認はありません）。変えた項目だけを送ります。</div>
+  </div>
+</div>
+
+<div id="pageS" style="display:none">
+  <div class="top"><b>ボットの設定</b><span class="meta" style="margin:0" id="sname"></span></div>
+  <div class="meta" id="smeta">今の設定</div>
+  <div id="snone" class="warnbox" style="display:none">設定を受け取れませんでした。ボットに「s」と送り直してください（ボットの更新が必要な場合もあります）。</div>
+  <div id="sbody">
+    <div class="card">
+      <div class="lbl">取引する銘柄</div>
+      <div class="seg" id="contract">
+        <button data-v="mini" class="neutral">ミニ</button>
+        <button data-v="micro" class="neutral">マイクロ</button>
+      </div>
+      <div class="note" id="cnote"></div>
+    </div>
+
+    <div class="card">
+      <div class="lbl"><span>戦略ごとの枚数（0で停止）</span><span id="slotmax"></span></div>
+      <div id="lotrows"></div>
+    </div>
+
+    <div class="card">
+      <div class="lbl">安全装置</div>
+      <div class="srow"><div class="nm">1日の損失上限（円）<small>超えたら戦略の新規を止める（③は対象外）</small><span class="was" id="w_dl"></span></div>
+        <div class="row wide"><button class="step" data-t="dl" data-d="-10000">−</button><input type="number" id="dl" step="10000" inputmode="numeric"><button class="step" data-t="dl" data-d="10000">＋</button></div></div>
+      <div class="srow"><div class="nm">戦略の建玉上限<small>ミニ換算・0.1〜5</small><span class="was" id="w_mx"></span></div>
+        <div class="row"><button class="step" data-t="mx" data-d="-0.5">−</button><input type="number" id="mx" step="0.5" inputmode="decimal"><button class="step" data-t="mx" data-d="0.5">＋</button></div></div>
+      <div class="srow"><div class="nm">手動の建玉上限<small>ミニ換算・0.1〜10・約定待ちの指値も含む</small><span class="was" id="w_mm"></span></div>
+        <div class="row"><button class="step" data-t="mm" data-d="-0.5">−</button><input type="number" id="mm" step="0.5" inputmode="decimal"><button class="step" data-t="mm" data-d="0.5">＋</button></div></div>
+    </div>
+
+    <div class="card">
+      <div class="sw"><span>新規を一時停止する<br><small style="color:var(--sub);font-size:11px">決済・損切りは続く。解除すると今日止まった戦略も再開</small></span><input type="checkbox" id="ps"></div>
+      <div class="sw" id="disrow" style="display:none;margin-top:10px"><span id="distext"></span><input type="checkbox" id="reen"></div>
+    </div>
+
+    <div class="card diff" id="diff"></div>
+    <div class="err" id="serr"></div>
+    <div class="note">送るとすぐ反映されます（変えた項目だけを送ります）。結果はボットから届きます。</div>
+  </div>
+</div>
   <button id="fallback">確認へ進む</button>
 
 <script>
 (function(){
   const tg = window.Telegram && window.Telegram.WebApp;
   const q = new URLSearchParams(location.search);
-  const px = +q.get("px") || 0, r5 = +q.get("r5") || 0, maxLots = +q.get("max") || 5;
-  const mult = +q.get("mult") || 100, ts = +q.get("ts") || 0;
+  let px = +q.get("px") || 0, ts = +q.get("ts") || 0, src = q.get("src") || "now", liveOk = null, liveAt = 0;
+  const r5 = +q.get("r5") || 0, maxLots = +q.get("max") || 5;
+  const mult = +q.get("mult") || 100, LP = q.get("lp") || "";
   const $ = id => document.getElementById(id);
   const yen = n => Math.round(n).toLocaleString("ja-JP");
   const r50 = n => Math.max(50, Math.round(n / 50) * 50);
 
   if (q.get("name")) $("name").textContent = q.get("name");
-  $("px").textContent = px ? yen(px) : "—";
   $("lotmax").textContent = "上限 " + maxLots + "枚";
-  if (ts) {
+  // 価格の表示（2026-11-09：lp があれば2秒ごとに読み直す）
+  function showPrice(){
+    $("px").textContent = px ? yen(px) : "—";
+    if (!ts) return;
     const mins = Math.floor((Date.now() / 1000 - ts) / 60);
     const t = new Date(ts * 1000);
     const hm = t.getHours() + ":" + String(t.getMinutes()).padStart(2, "0");
+    const hms = hm + ":" + String(t.getSeconds()).padStart(2, "0");
     const md = (t.getMonth() + 1) + "/" + t.getDate() + " ";
-    if (q.get("src") === "last") {
-      $("meta").innerHTML = '<span class="stale">取引時間外：最後の値段（' + md + hm + '）</span>　指値の初期値に使っています';
+    const live = liveOk === true ? '　<span style="color:#2a9d4a">● 自動更新中</span>'
+      : liveOk === false ? '　<span class="stale">自動更新が止まっています（開き直すか「f」）</span>' : "";
+    if (src === "last") {
+      $("meta").innerHTML = '<span class="stale">取引時間外：最後の値段（' + md + hm + '）</span>' + live;
+    } else if (LP && liveOk) {
+      $("meta").innerHTML = "現在値 " + hms + live;
     } else {
-      $("meta").innerHTML = "現在値は " + hm + " 時点" + (mins >= 5 ? '　<span class="stale">' + mins + '分前の値。新しくするには「f」と送り直す</span>' : "");
+      $("meta").innerHTML = "現在値は " + hm + " 時点" + (mins >= 5 ? '　<span class="stale">' + mins + '分前の値。新しくするには「f」と送り直す</span>' : "") + live;
     }
   }
-  if (px) $("limit").value = Math.round(px / 5) * 5;
+  showPrice();
+  // 指値は、自分で触るまで今の値段に合わせ続ける
+  let limitTouched = false;
+  const syncLimit = () => { if (!limitTouched && px) $("limit").value = Math.round(px / 5) * 5; };
+  syncLimit();
+  $("limit").addEventListener("input", () => { limitTouched = true; });
 
   // 損切り幅の候補：直近の5分ごとの値幅の平均をもとに
   const chips = r5 ? [r50(r5), r50(r5 * 1.5), r50(r5 * 2), r50(r5 * 3)] : [150, 200, 300, 400];
@@ -171,6 +315,7 @@
     $("limit").disabled = kind !== "lmt"; haptic(); render();
   });
   document.querySelectorAll(".step").forEach(b => b.onclick = () => {
+    if (b.dataset.t === "limit") { if (!limitTouched && px && !+$("limit").value) syncLimit(); limitTouched = true; }
     const el = $(b.dataset.t); el.value = (+el.value || 0) + (+b.dataset.d); haptic(); render();
   });
   ["lots", "limit", "stop", "trail", "stepw", "tp"].forEach(id => $(id).addEventListener("input", render));
@@ -221,12 +366,294 @@
       : "";
     $("warn").style.display = narrowed ? "" : "none";
     $("err").textContent = e.join("　");
-    if (tg && tg.MainButton) {
+    if (tab === "o" && tg && tg.MainButton) {
+      tg.MainButton.setText("確認へ進む（まだ発注されません）");
       if (e.length) tg.MainButton.disable(); else tg.MainButton.enable();
     }
   }
 
+  // ---------------- 設定タブ（2026-11-09 追加） ----------------
+  const KEYS = ["B", "C", "SW", "US", "BB", "CE"];
+  const SNAMES = {B: "①日中ブレイク", C: "②三尊パターン", SW: "③4時間スイング", US: "④米国寄り付き", BB: "⑤日中ボリンジャー", CE: "⑥15分トレンド追従"};
+  const hasS = q.has("l") && q.has("c");
+  const cur = hasS ? {
+    contract: q.get("c"), lots: Object.fromEntries(KEYS.map((k, i) => [k, +(q.get("l").split(",")[i] || 0)])),
+    dl: +q.get("dl"), mx: +q.get("mx"), mm: +q.get("mm"), ps: q.get("ps") === "1",
+    dis: (q.get("dis") || "").split(",").filter(Boolean)
+  } : null;
+  const LIM = {micro: +q.get("lmi") || 20, mini: +q.get("lmn") || 5};
+  const CNAME = {mini: "ミニ", micro: "マイクロ"};
+  let sContract = cur ? cur.contract : "mini";
+  if (!hasS) { $("snone").style.display = ""; $("sbody").style.display = "none"; }
+  else {
+    const sts = +q.get("sts") || 0;
+    if (sts) {
+      const t = new Date(sts * 1000), mins = Math.floor((Date.now() / 1000 - sts) / 60);
+      $("smeta").innerHTML = "表示は " + (t.getMonth() + 1) + "/" + t.getDate() + " " + t.getHours() + ":" + String(t.getMinutes()).padStart(2, "0") + " 時点の設定"
+        + (mins >= 10 ? '　<span class="stale">' + mins + '分前。ほかで変えた時は「s」と送り直す</span>' : "");
+    }
+    KEYS.forEach(k => {
+      const d = document.createElement("div"); d.className = "srow";
+      d.innerHTML = '<div class="nm">' + SNAMES[k] + '<span class="was" id="w_' + k + '"></span></div>'
+        + '<div class="row"><button class="step" data-t="lot_' + k + '" data-d="-1">−</button>'
+        + '<input type="number" id="lot_' + k + '" min="0" inputmode="numeric">'
+        + '<button class="step" data-t="lot_' + k + '" data-d="1">＋</button></div>';
+      $("lotrows").appendChild(d);
+      $("lot_" + k).value = cur.lots[k];
+    });
+    $("dl").value = cur.dl; $("mx").value = cur.mx; $("mm").value = cur.mm; $("ps").checked = cur.ps;
+    if (cur.dis.length) {
+      $("disrow").style.display = "";
+      $("distext").textContent = "今日止まっている戦略（" + cur.dis.map(k => SNAMES[k]).join("・") + "）を再開する";
+    }
+    document.querySelectorAll("#contract button").forEach(b => b.onclick = () => {
+      sContract = b.dataset.v; haptic(); renderS();
+    });
+    document.querySelectorAll("#pageS .step").forEach(b => b.onclick = () => {
+      const el = $(b.dataset.t); el.value = Math.round(((+el.value || 0) + (+b.dataset.d)) * 10) / 10;
+      if (+el.value < 0) el.value = 0; haptic(); renderS();
+    });
+    document.querySelectorAll("#pageS input").forEach(el => el.addEventListener("input", renderS));
+  }
+
+  function readS(){
+    const o = {type: "settings", v: 1}, e = [], D = [];
+    if (!cur) return [o, ["設定を受け取れていません"], D];
+    const lim = LIM[sContract];
+    if (sContract !== cur.contract) { o.contract = sContract; D.push(["銘柄", CNAME[cur.contract], CNAME[sContract]]); }
+    const lots = {};
+    KEYS.forEach(k => {
+      const v = +$("lot_" + k).value;
+      if (!(Number.isInteger(v) && v >= 0 && v <= lim)) e.push(SNAMES[k] + "は0〜" + lim + "枚");
+      else if (v !== cur.lots[k]) { lots[k] = v; D.push([SNAMES[k], cur.lots[k] + "枚", v + "枚"]); }
+    });
+    if (Object.keys(lots).length) o.lots = lots;
+    const dl = Math.round(+$("dl").value), mx = +$("mx").value, mm = +$("mm").value;
+    if (!(dl >= 1000)) e.push("損失上限は1,000円以上");
+    else if (dl !== cur.dl) { o.daily_loss_limit = dl; D.push(["1日の損失上限", yen(cur.dl) + "円", yen(dl) + "円"]); }
+    if (!(mx >= 0.1 && mx <= 5)) e.push("戦略の建玉上限は0.1〜5");
+    else if (mx !== cur.mx) { o.max_exposure_mini = mx; D.push(["戦略の建玉上限", cur.mx, mx]); }
+    if (!(mm >= 0.1 && mm <= 10)) e.push("手動の建玉上限は0.1〜10");
+    else if (mm !== cur.mm) { o.manual_max_mini = mm; D.push(["手動の建玉上限", cur.mm, mm]); }
+    const ps = $("ps").checked;
+    if (ps !== cur.ps) { o.paused = ps; D.push(["新規の一時停止", cur.ps ? "する" : "しない", ps ? "する" : "しない"]); }
+    if ($("reen").checked && cur.dis.length) { o.reenable = true; D.push(["今日止まっている戦略", "停止", "再開"]); }
+    return [o, e, D];
+  }
+
+  function renderS(){
+    if (!cur) return;
+    document.querySelectorAll("#contract button").forEach(x => x.classList.toggle("on", x.dataset.v === sContract));
+    $("slotmax").textContent = "上限 " + LIM[sContract] + "枚（" + CNAME[sContract] + "）";
+    $("cnote").innerHTML = sContract !== cur.contract
+      ? '<span class="stale">注意：1枚の大きさが' + (sContract === "mini" ? "10倍に増えます" : "10分の1に減ります")
+        + "（ミニ1枚＝マイクロ10枚）。枚数も見直してください。今の建玉は元の銘柄のまま管理されます。</span>"
+      : "ミニ1枚＝マイクロ10枚";
+    const [o, e, D] = readS();
+    KEYS.forEach(k => {
+      const ch = o.lots && k in o.lots;
+      $("lot_" + k).classList.toggle("chg", !!ch); $("w_" + k).textContent = ch ? "　今 " + cur.lots[k] + "枚" : "";
+    });
+    [["dl", "daily_loss_limit", v => yen(v) + "円"], ["mx", "max_exposure_mini", v => v], ["mm", "manual_max_mini", v => v]].forEach(([id, key, f]) => {
+      const ch = key in o; $(id).classList.toggle("chg", ch); $("w_" + id).textContent = ch ? "　今 " + f(cur[id]) : "";
+    });
+    $("diff").innerHTML = D.length
+      ? "<div style='color:var(--sub);font-size:12px'>変更する項目</div>" + D.map(([a, b, c]) => "<div>" + a + "：" + b + " → <b>" + c + "</b></div>").join("")
+      : "<div style='color:var(--sub)'>変更なし（今の設定のまま）</div>";
+    $("serr").textContent = e.join("　");
+    if (tab === "s" && tg && tg.MainButton) {
+      tg.MainButton.setText(D.length ? "設定を反映する（" + D.length + "項目）" : "変更なし");
+      if (e.length || !D.length) tg.MainButton.disable(); else tg.MainButton.enable();
+    }
+  }
+
+  function submitS(){
+    const [o, e, D] = readS();
+    if (e.length) { $("serr").textContent = e.join("　"); return; }
+    if (!D.length) { $("serr").textContent = "変更がありません"; return; }
+    if (tg && tg.sendData && tg.initData !== undefined) { tg.sendData(JSON.stringify(o)); }
+    else { $("serr").textContent = "Telegram の中で開いてください（ボットに「s」と送ると出るボタンから）"; }
+  }
+
+  // ---------------- 注文中タブ（2026-11-09 追加）：手動の建玉・約定待ちの指値 ----------------
+  let items = [];
+  try { items = JSON.parse(q.get("mo") || "[]"); } catch(e) { items = []; }
+  const hasM = q.has("mo");
+  let mi = Math.max(0, items.findIndex(it => it.s === q.get("sel")));   // 「✏️ 修正」ボタンから開いた時はその注文を選ぶ
+  const SLOTNAME = s => "⑦手動" + s.slice(1);
+  function showPriceM(){
+    $("mpx").textContent = px ? yen(px) : "—";
+    $("mmeta").innerHTML = (src === "last" ? '<span class="stale">取引時間外：最後の値段</span>' : "現在値")
+      + "（" + (ts ? new Date(ts * 1000).toLocaleTimeString("ja-JP", LP && liveOk ? {} : {hour: "2-digit", minute: "2-digit"}) : "—") + "）"
+      + (liveOk === true ? '　<span style="color:#2a9d4a">● 自動更新中</span>' : liveOk === false ? '　<span class="stale">自動更新が止まっています</span>' : "")
+      + (hasM ? "" : '　<span class="stale">ボットの更新が必要です</span>');
+    const it = items[mi];
+    if (it && it.k === "p") {
+      const un = px ? (px - it.e) * it.sd * it.mu * it.n : null;
+      $("msub").innerHTML = "建値 " + yen(it.e) + (un !== null ? "　含み " + (un >= 0 ? "+" : "−") + yen(Math.abs(un)) + "円（目安）" : "");
+    }
+    const c = $("nowchip"); if (c) c.textContent = "今の値段 " + (px ? yen(px) : "—");
+  }
+  showPriceM();
+  if (!items.length) { $("mnone").style.display = ""; }
+  function pickRender(){
+    $("mpick").innerHTML = "";
+    if (items.length < 2) return;
+    items.forEach((it, i) => {
+      const b = document.createElement("button");
+      b.textContent = SLOTNAME(it.s) + " " + (it.sd > 0 ? "買" : "売") + it.n + (it.k === "p" ? "（建玉）" : "（指値）");
+      b.className = i === mi ? "on" : "";
+      b.onclick = () => { mi = i; haptic(); loadItem(); };
+      $("mpick").appendChild(b);
+    });
+  }
+  // 値の意味：建玉の損切り・利確は「価格」、約定待ちの指値の損切り・利確は「幅」（5000以上なら価格）
+  function loadItem(){
+    pickRender();
+    const it = items[mi]; if (!it) return;
+    $("mbody").style.display = "";
+    const isP = it.k === "p", sideTxt = it.sd > 0 ? "買い" : "売り";
+    $("mhead").innerHTML = SLOTNAME(it.s) + "　" + sideTxt + " " + it.n + "枚"
+      + '<span class="badge" style="background:' + (it.sd > 0 ? "var(--buy)" : "var(--sell)") + '">' + (isP ? "建玉" : "約定待ちの指値") + "</span>";
+    if (isP) {
+      showPriceM();
+    } else {
+      $("msub").textContent = "指値 " + yen(it.e) + "　約定したら下の損切り・追従・利確を使います";
+    }
+    $("mlimitBox").style.display = isP ? "none" : "";
+    $("mlimit").value = isP ? "" : it.e;
+    const stopIsPx = isP || it.sp >= 5000, tpIsPx = isP || it.tp >= 5000;
+    $("mstopLbl").textContent = stopIsPx ? "損切りの価格" : "損切りの幅（円・約定値から）";
+    $("mstop").value = it.sp || (isP ? "" : 300);
+    $("mstop").step = stopIsPx ? 5 : 50;
+    $("mstopMinus").dataset.d = stopIsPx ? -5 : -50; $("mstopPlus").dataset.d = stopIsPx ? 5 : 50;
+    $("mtpLbl").textContent = tpIsPx ? "利確の価格（0でなし）" : "利確の幅（円・0でなし）";
+    $("mtp").value = it.tp || 0;
+    $("mtp").step = tpIsPx ? 5 : 50;
+    $("mtrailOn").checked = !!it.tr;
+    $("mtrail").value = it.tr || 200; $("mstepw").value = it.tr ? (it.st || 5) : 50;
+    $("mtrailBox").style.display = it.tr ? "" : "none";
+    // 候補
+    $("mstopchips").innerHTML = ""; $("mlimitchips").innerHTML = "";
+    const chip = (box, label, fn) => { const b = document.createElement("button"); b.textContent = label; b.onclick = () => { fn(); haptic(); renderM(); }; $(box).appendChild(b); };
+    if (isP) {
+      chip("mstopchips", "建値 " + yen(it.e), () => $("mstop").value = Math.round(it.e / 5) * 5);
+      if (px) [100, 200, 300].forEach(w => chip("mstopchips", "今から" + w + "円", () => $("mstop").value = Math.round((px - it.sd * w) / 5) * 5));
+    } else {
+      [100, 200, 300, 500].forEach(w => chip("mstopchips", w + "円", () => $("mstop").value = w));
+      chip("mlimitchips", "今の値段", () => { if (px) $("mlimit").value = Math.round(px / 5) * 5; });
+      $("mlimitchips").lastChild.id = "nowchip";
+      [-50, -20, 20, 50].forEach(d => chip("mlimitchips", (d > 0 ? "+" : "") + d, () => $("mlimit").value = (+$("mlimit").value || it.e) + d));
+    }
+    $("mdanger").textContent = isP ? "この建玉を決済する（成行）" : "この指値を取り消す";
+    showPriceM();
+    renderM();
+  }
+  document.querySelectorAll("#pageM .step").forEach(b => b.onclick = () => {
+    const el = $(b.dataset.t); el.value = (+el.value || 0) + (+b.dataset.d); if (+el.value < 0) el.value = 0; haptic(); renderM();
+  });
+  ["mlimit", "mstop", "mtrail", "mstepw", "mtp"].forEach(id => $(id).addEventListener("input", renderM));
+  $("mtrailOn").onchange = () => { $("mtrailBox").style.display = $("mtrailOn").checked ? "" : "none"; renderM(); };
+
+  function readM(){
+    const it = items[mi], e = [], D = [];
+    if (!it) return [null, ["注文がありません"], D];
+    const isP = it.k === "p", o = {type: "manual", v: 1, slot: it.s};
+    const fmt = v => v >= 5000 ? yen(v) : yen(v) + "円幅";
+    if (!isP) {
+      const lim = Math.round((+$("mlimit").value) / 5) * 5;
+      if (!(lim > 1000)) e.push("指値の値段を入れてください");
+      else if (lim !== it.e) { o.limit = lim; D.push(["指値", yen(it.e), yen(lim)]); }
+    }
+    const sp = +$("mstop").value;
+    if (!(sp >= 5)) e.push("損切りを入れてください");
+    else if (isP && px && (sp - px) * it.sd >= 0) e.push("損切り " + yen(sp) + " が今の値段 " + yen(px) + " を越えています");
+    else if (Math.abs(sp - it.sp) >= 0.5) { o.stop = sp; D.push(["損切り", it.sp ? (isP ? yen(it.sp) : fmt(it.sp)) : "—", isP ? yen(sp) : fmt(sp)]); }
+    const on = $("mtrailOn").checked, tr = on ? Math.round(+$("mtrail").value) : 0, st = on ? Math.round(+$("mstepw").value) : 0;
+    if (on && !(tr >= 5 && tr < 5000)) e.push("追従の幅は5〜4,999円");
+    if (on && !(st >= 5 && st < 5000)) e.push("刻みは5〜4,999円");
+    if (!on && it.tr) { o.trail = 0; D.push(["追従", yen(it.tr) + "円幅", "なし"]); }
+    if (on && tr >= 5 && tr !== it.tr) { o.trail = tr; D.push(["追従の幅", it.tr ? yen(it.tr) + "円" : "なし", yen(tr) + "円"]); }
+    if (on && st >= 5 && st !== it.st) { o.step = st; D.push(["刻み", it.st ? yen(it.st) + "円" : "—", yen(st) + "円"]); }
+    const tp = Math.round(+$("mtp").value) || 0;
+    if (tp && isP && px && (tp - px) * it.sd <= 0) e.push("利確 " + yen(tp) + " が今の値段の" + (it.sd > 0 ? "下" : "上") + "です");
+    else if (tp && !isP && !(tp >= 5)) e.push("利確の幅を見直してください");
+    else if (tp !== Math.round(it.tp || 0)) { o.tp = tp; D.push(["利確", it.tp ? (isP ? yen(it.tp) : fmt(it.tp)) : "なし", tp ? (isP ? yen(tp) : fmt(tp)) : "なし"]); }
+    if (isP && tp && tp < 5000) e.push("建玉の利確は価格で入れてください（0でなし）");
+    if (isP && sp && sp < 5000) e.push("建玉の損切りは価格で入れてください");
+    return [o, e, D];
+  }
+
+  function renderM(){
+    const it = items[mi]; if (!it) return;
+    const [o, e, D] = readM();
+    const isP = it.k === "p";
+    const mark = (id, key) => { $(id).classList.toggle("chg", !!o && key in o); };
+    mark("mlimit", "limit"); mark("mstop", "stop"); mark("mtrail", "trail"); mark("mstepw", "step"); mark("mtp", "tp");
+    let extra = "";
+    const sp = +$("mstop").value;
+    if (isP && sp) {
+      const pl = (sp - it.e) * it.sd * it.mu * it.n;
+      extra = "<div style='color:var(--sub);font-size:12px;margin-top:4px'>損切りに当たった時の損益（目安・手数料前）：" + (pl >= 0 ? "+" : "−") + yen(Math.abs(pl)) + "円</div>";
+    } else if (!isP && sp) {
+      const w = sp >= 5000 ? Math.abs((+$("mlimit").value || it.e) - sp) : sp;
+      extra = "<div style='color:var(--sub);font-size:12px;margin-top:4px'>約定後に損切りに当たった時の損失（目安）：−" + yen(w * it.mu * it.n) + "円</div>";
+    }
+    $("mdiff").innerHTML = (D.length
+      ? "<div style='color:var(--sub);font-size:12px'>変更する項目</div>" + D.map(([a, b, c]) => "<div>" + a + "：" + b + " → <b>" + c + "</b></div>").join("")
+      : "<div style='color:var(--sub)'>変更なし</div>") + extra;
+    // 追従が損切りより狭いと、追従の式（建値＋刻み単位の含み益−追従の幅）で損切りが詰められる
+    const on = $("mtrailOn").checked, tr = +$("mtrail").value;
+    const stopW = isP ? Math.abs(it.e - sp) : (sp >= 5000 ? Math.abs((+$("mlimit").value || it.e) - sp) : sp);
+    const narrowed = on && tr && stopW > tr;
+    $("mwarn").textContent = narrowed ? "注意：損切りの幅（建値から約" + yen(stopW) + "円）が追従の幅（" + yen(tr) + "円）より大きいため、損切りが追従の位置まで詰められます。" : "";
+    $("mwarn").style.display = narrowed ? "" : "none";
+    $("merr").textContent = e.join("　");
+    if (tab === "m" && tg && tg.MainButton) {
+      tg.MainButton.setText(D.length ? "変更を送る（" + D.length + "項目）" : "変更なし");
+      if (e.length || !D.length) tg.MainButton.disable(); else tg.MainButton.enable();
+    }
+  }
+
+  function sendM(o){
+    if (tg && tg.sendData && tg.initData !== undefined) { tg.sendData(JSON.stringify(o)); }
+    else { $("merr").textContent = "Telegram の中で開いてください（ボットに「m」と送ると出るボタンから）"; }
+  }
+  function submitM(){
+    const [o, e, D] = readM();
+    if (e.length) { $("merr").textContent = e.join("　"); return; }
+    if (!D.length) { $("merr").textContent = "変更がありません"; return; }
+    sendM(o);
+  }
+  $("mdanger").onclick = () => {
+    const it = items[mi]; if (!it) return;
+    const isP = it.k === "p";
+    const msg = SLOTNAME(it.s) + "（" + (it.sd > 0 ? "買" : "売") + it.n + "枚）を" + (isP ? "成行で決済" : "取消") + "します。よろしいですか？";
+    const go = () => sendM({type: "manual", v: 1, slot: it.s, act: isP ? "close" : "cancel"});
+    if (tg && tg.showConfirm && tg.initData) tg.showConfirm(msg, ok => { if (ok) go(); });
+    else if (confirm(msg)) go();
+  };
+
+  // ---------------- タブ ----------------
+  let tab = ["s", "m"].includes(q.get("tab")) ? q.get("tab") : "o";
+  function setTab(t){
+    tab = t;
+    document.querySelectorAll("#tabs button").forEach(b => b.classList.toggle("on", b.dataset.t === t));
+    $("pageO").style.display = t === "o" ? "" : "none";
+    $("pageS").style.display = t === "s" ? "" : "none";
+    $("pageM").style.display = t === "m" ? "" : "none";
+    $("fallback").textContent = t === "o" ? "確認へ進む" : t === "s" ? "設定を反映する" : "変更を送る";
+    if (tg && tg.MainButton) {
+      tg.MainButton.setText("確認へ進む（まだ発注されません）");
+      if (t === "m" && !items.length) { tg.MainButton.setText("注文はありません"); tg.MainButton.disable(); }
+    }
+    if (t === "o") render(); else if (t === "s") renderS(); else if (items.length) loadItem();
+  }
+  document.querySelectorAll("#tabs button").forEach(b => b.onclick = () => { haptic(); setTab(b.dataset.t); });
+
   function submit(){
+    if (tab === "s") return submitS();
+    if (tab === "m") return submitM();
     const [o, e] = read();
     if (e.length) { $("err").textContent = e.join("　"); return; }
     if (tg && tg.sendData && tg.initData !== undefined) { tg.sendData(JSON.stringify(o)); }
@@ -235,14 +662,31 @@
 
   if (tg && tg.MainButton) {
     tg.ready(); tg.expand();
-    tg.MainButton.setText("確認へ進む（まだ発注されません）");
     tg.MainButton.onClick(submit);
     tg.MainButton.show();
   }
   if (!tg || !tg.initDataUnsafe || !tg.platform || tg.platform === "unknown") {
     $("fallback").style.display = "block"; $("fallback").onclick = submit;
   }
-  render();
+  setTab(tab);
+
+  // ---------------- 価格の自動更新（2026-11-09 追加）：ボットの中継（lp）から2秒ごとに読む ----------------
+  async function poll(){
+    if (!LP || document.hidden) return;
+    try {
+      const ctl = new AbortController(); const tm = setTimeout(() => ctl.abort(), 4000);
+      const r = await fetch(LP, {cache: "no-store", signal: ctl.signal}); clearTimeout(tm);
+      const d = await r.json();
+      if (d && d.px) {
+        px = d.px; ts = d.ts || ts; src = d.src || src; liveOk = true; liveAt = Date.now();
+      }
+    } catch(e) {
+      if (Date.now() - liveAt > 10000) liveOk = false;
+    }
+    showPrice(); showPriceM(); syncLimit();
+    if (tab === "o") render(); else if (tab === "m") renderM();
+  }
+  if (LP) { poll(); setInterval(poll, 2000); document.addEventListener("visibilitychange", poll); }
 })();
 </script>
 </body>
