@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>注文・設定フォーム</title>
+<script>window.__PA_HASH = location.hash;</script>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <style>
   :root{
@@ -44,7 +45,7 @@
   .note{font-size:12px;color:var(--sub);margin-top:8px}
   .err{color:var(--buy);font-size:13px;margin-top:6px;min-height:1em}
   .warnbox{border:1.5px solid var(--warn);color:var(--warn);background:var(--card);border-radius:10px;padding:10px 12px;font-size:13px;font-weight:600;margin-bottom:6px}
-  .tabs{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;background:var(--card);border-radius:12px;padding:4px;margin-bottom:12px}
+  .tabs{display:grid;grid-template-columns:repeat(var(--nt,4),1fr);gap:6px;background:var(--card);border-radius:12px;padding:4px;margin-bottom:12px}
   .tabs button{border:none;border-radius:9px;padding:9px 0;font-size:15px;font-weight:700;background:transparent;color:var(--sub)}
   .tabs button.on{background:var(--bg);color:var(--fg);box-shadow:0 1px 3px rgba(0,0,0,.12)}
   .srow{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 0}
@@ -67,10 +68,32 @@
   .pick button.on{background:var(--accent);color:var(--accent-fg)}
   .badge{display:inline-block;font-size:11px;font-weight:700;border-radius:6px;padding:1px 6px;margin-left:6px;color:#fff}
   #fallback{display:none;width:100%;margin-top:6px;padding:14px;border:none;border-radius:12px;background:var(--accent);color:var(--accent-fg);font-size:16px;font-weight:700}
+  /* 分析タブ（2026-11-10 追加） */
+  #pageA{--s1:#2a78d6;--s2:#eb6834;--gl:rgba(128,128,128,.18);--zl:rgba(128,128,128,.55)}
+  #pageA.dk{--s1:#3987e5;--s2:#d95926}
+  #pageA .kp{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px}
+  #pageA .kp div{background:var(--card);border-radius:12px;padding:10px 12px}
+  #pageA .kp small{display:flex;align-items:center;gap:6px;color:var(--sub);font-size:12px}
+  #pageA .kp b{display:block;font-size:20px;font-variant-numeric:tabular-nums}
+  #pageA .kp em{font-style:normal;color:var(--sub);font-size:11px}
+  #pageA .dot{display:inline-block;width:9px;height:9px;border-radius:3px}
+  #pageA h3{font-size:14px;margin:0 0 2px}
+  #pageA .ds{font-size:11px;color:var(--sub);margin:0 0 6px}
+  #pageA .lg{display:flex;gap:12px;font-size:11px;color:var(--sub);margin-bottom:4px}
+  #pageA .lg span{display:inline-flex;align-items:center;gap:5px}
+  #pageA svg{display:block;width:100%;height:auto;overflow:visible}
+  #pageA svg text{fill:var(--sub);font-size:10px}
+  #pageA svg text.v{fill:var(--fg);font-weight:600}
+  #pageA .tb{width:100%;border-collapse:collapse;font-size:12px;font-variant-numeric:tabular-nums}
+  #pageA .tb td,#pageA .tb th{padding:4px 3px;border-bottom:1px solid var(--gl);text-align:right;white-space:nowrap}
+  #pageA .tb th{color:var(--sub);font-weight:600}
+  #pageA .tb td:nth-child(-n+2),#pageA .tb th:nth-child(-n+2){text-align:left}
+  #pageA .tip{position:fixed;pointer-events:none;background:var(--fg);color:var(--bg);font-size:12px;padding:5px 8px;border-radius:6px;opacity:0;z-index:9;line-height:1.45;max-width:80vw}
+  #pageA .empty{color:var(--sub);font-size:13px;padding:24px 4px;text-align:center}
 </style>
 </head>
 <body>
-  <div class="tabs" id="tabs"><button data-t="o">注文</button><button data-t="m">注文中</button><button data-t="s">設定</button></div>
+  <div class="tabs" id="tabs"><button data-t="o">注文</button><button data-t="m">注文中</button><button data-t="s">設定</button><button data-t="a">分析</button></div>
 <div id="pageO">
   <div class="top"><b id="name">日経225mini</b><span class="px" id="px">—</span></div>
   <div class="meta" id="meta">価格は bot から受け取った時点のものです</div>
@@ -252,6 +275,11 @@
     <div class="err" id="serr"></div>
     <div class="note">送るとすぐ反映されます（変えた項目だけを送ります）。結果はボットから届きます。</div>
   </div>
+</div>
+<div id="pageA" style="display:none">
+  <div class="top"><b id="aTitle">分析</b><span class="meta" id="aMeta" style="margin:0"></span></div>
+  <div id="aBody"></div>
+  <div class="tip" id="aTip"></div>
 </div>
   <button id="fallback">確認へ進む</button>
 
@@ -634,14 +662,150 @@
     else if (confirm(msg)) go();
   };
 
+  // ---------------- 分析タブ（2026-11-10 追加）：「今日の分析」の「📈 グラフで見る」から開く。データは URL の # 以降 ----------------
+  function renderA(){
+    const box = $("aBody"), tip = $("aTip");
+    const dark = (tg && tg.colorScheme === "dark") || (!tg || !tg.colorScheme) && window.matchMedia && matchMedia("(prefers-color-scheme: dark)").matches;
+    $("pageA").classList.toggle("dk", !!dark);
+    const raw = (window.__PA_HASH || location.hash || "").replace(/^#/, "").split("&").find(x => x.startsWith("pa=")) || ("pa=" + (q.get("pa") || ""));
+    const P = decodeURIComponent(raw.slice(3)).split("!");
+    if (P[0] !== "1" || P.length < 8) { box.innerHTML = '<div class="empty">データがありません。<br>Telegram で「今日の分析」を押し、返事の下の「📈 グラフで見る」から開いてください。</div>'; return; }
+    const NM = {B: "①日中ブレイク", C: "②三尊パターン", SW: "③4時間スイング", US: "④米国寄り付き", BB: "⑤日中ボリンジャー", CE: "⑥15分トレンド", M: "⑦手動"};
+    const RS = {b: "逆指値", s: "損切り", t: "時間・引け", z: "時間切れ", g: "利確", m: "手動決済", x: "安値割れ", f: "線の反転", r: "限月切替", o: "その他"};
+    const ORD = ["B", "C", "SW", "US", "BB", "CE", "M"];
+    const nm = k => NM[k] || (/^M\d+$/.test(k) ? "⑦手動" + k.slice(1) : k);
+    const sg = v => (v > 0 ? "+" : v < 0 ? "−" : "±") + Math.abs(Math.round(v)).toLocaleString("ja-JP") + "円";
+    const man = k => k === "M" || /^M\d+$/.test(k);
+    const d0 = P[1], [hm, pxs, flag] = P[2].split(","), lastPx = +pxs;
+    const base = new Date(+d0.slice(0, 4), +d0.slice(4, 6) - 1, +d0.slice(6, 8), 7, 0);
+    const wd = "日月火水木金土"[base.getDay()];
+    $("aTitle").textContent = `${base.getMonth() + 1}/${base.getDate()}（${wd}）の成績`;
+    $("aMeta").textContent = `${hm.slice(0, 2)}:${hm.slice(2)} 時点・手数料込み`;
+    const bars = []; let sl = 0, c = 0;
+    (P[3] ? P[3].split(";") : []).forEach((r, i) => { const [a, b] = r.split(",").map(Number); if (i === 0) { sl = a; c = b; } else { sl += a; c += b * 5; } bars.push([sl, c]); });
+    const T = (P[4] ? P[4].split(";") : []).map(r => { const f = r.split(","); return {m: +f[0], k: f[1], sd: f[2] === "b" ? 1 : -1, n: +f[3], e: +f[4], x: +f[4] + +f[5], v: +f[6], r: f[7]}; });
+    const AG = {}; (P[5] ? P[5].split(";") : []).forEach(r => { const f = r.split(","); AG[f[0]] = {n: +f[1], w: +f[2], v: +f[3]}; });
+    const DY = (P[6] ? P[6].split(";") : []).map(r => { const f = r.split(","); return [f[0], +f[1], +f[2]]; });
+    const OP = (P[7] ? P[7].split(";") : []).map(r => { const f = r.split(","); return {k: f[0], sd: +f[1], n: +f[2], e: +f[3], v: +f[4]}; });
+    const sum = f => Object.entries(AG).filter(([k]) => f(k)).reduce((s, [, a]) => s + a.v, 0);
+    const cnt = f => Object.entries(AG).filter(([k]) => f(k)).reduce((s, [, a]) => s + a.n, 0);
+    const sv = sum(k => !man(k)), mv = sum(man), opv = OP.reduce((s, o) => s + o.v, 0);
+    const css = n => getComputedStyle($("pageA")).getPropertyValue(n).trim();
+    const C1 = css("--s1"), C2 = css("--s2"), GL = css("--gl"), ZL = css("--zl"), BG = getComputedStyle(document.body).backgroundColor;
+    let h = `<div class="kp">
+      <div><small><i class="dot" style="background:${C1}"></i>戦略</small><b>${sg(sv)}</b><em>${cnt(k => !man(k))}回</em></div>
+      <div><small><i class="dot" style="background:${C2}"></i>⑦手動</small><b>${sg(mv)}</b><em>${cnt(man)}回</em></div>
+      <div><small>合計（決済済み）</small><b>${sg(sv + mv)}</b><em>${cnt(() => true)}回</em></div>
+      <div><small>建玉の含み（手数料前）</small><b>${OP.length ? sg(opv) : "なし"}</b><em>${OP.map(o => nm(o.k) + (o.sd > 0 ? " 買" : " 売") + o.n).join("・") || "—"}</em></div></div>`;
+    const card = (t, d, inner, lg) => `<div class="card"><h3>${t}</h3><p class="ds">${d}</p>${lg ? `<div class="lg"><span><i class="dot" style="background:${C1}"></i>戦略</span><span><i class="dot" style="background:${C2}"></i>⑦手動</span></div>` : ""}${inner}</div>`;
+    const W = 360, L = 40, R = 8, X = s => L + (W - L - R) * s / 96;
+    const NS = "http://www.w3.org/2000/svg";
+    const nice = (lo, hi, n) => { if (lo === hi) { lo -= 1; hi += 1; } const s0 = (hi - lo) / n, m = Math.pow(10, Math.floor(Math.log10(s0))); const st = [1, 2, 2.5, 5, 10].map(x => x * m).find(x => x >= s0); const out = []; for (let v = Math.floor(lo / st) * st; v <= Math.ceil(hi / st) * st + 1e-9; v += st) out.push(Math.round(v)); return out; };
+    const man10k = v => (Math.abs(v) >= 10000 ? (v / 10000).toLocaleString("ja-JP", {maximumFractionDigits: 1}) + "万" : v.toLocaleString("ja-JP"));
+    const hasRows = flag !== "n";
+    if (hasRows && T.length) h += card("損益の積み上がり", "決済した時点で足し上げ（手数料込み）" + (flag === "m" ? "。⑦手動の行は長すぎるため省略" : ""), '<svg id="aCum"></svg>', true);
+    if (bars.length) h += card("値動き（15分足の終値）", "● が決済した点（色は戦略／手動）。点を押すと詳細", '<svg id="aPx"></svg>');
+    h += card("戦略別", OP.length ? "斜線は建玉の含み（未決済）" : "その日の損益（手数料込み）", '<svg id="aBy"></svg>');
+    if (DY.length) h += card("今月の取引日ごと", "朝7時で区切り（夜間は前の日中と同じ日）", '<svg id="aDy"></svg>', true);
+    if (hasRows && T.length) h += card("取引", "決済の順", `<table class="tb"><tr><th>時刻</th><th>戦略</th><th>売買</th><th>建値→決済</th><th>損益</th></tr>${T.map(t => { const d = new Date(base.getTime() + t.m * 60000); return `<tr><td>${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}</td><td>${nm(t.k).replace("日中ブレイク", "日中ブ").replace("米国寄り付き", "米国寄").replace("4時間スイング", "スイング")}</td><td>${t.sd > 0 ? "買" : "売"}${t.n}</td><td>${t.e.toLocaleString()}→${t.x.toLocaleString()}</td><td>${sg(t.v)}${t.r === "b" ? "" : "<br><small style='color:var(--sub)'>" + (RS[t.r] || "") + "</small>"}</td></tr>`; }).join("")}</table>`);
+    if (!T.length && !OP.length && !bars.length) h += '<div class="empty">この日の取引はまだありません</div>';
+    box.innerHTML = h;
+    const el = (t, a, p) => { const e = document.createElementNS(NS, t); for (const k in a) e.setAttribute(k, a[k]); if (p) p.appendChild(e); return e; };
+    const txt = (p, x, y, s, a) => { const e = el("text", Object.assign({x, y}, a || {}), p); e.textContent = s; return e; };
+    const showTip = (ev, s) => { tip.innerHTML = s; tip.style.opacity = 1; const r = tip.getBoundingClientRect(); let x = ev.clientX - r.width / 2, y = ev.clientY - r.height - 14; x = Math.max(6, Math.min(innerWidth - r.width - 6, x)); if (y < 6) y = ev.clientY + 16; tip.style.left = x + "px"; tip.style.top = y + "px"; };
+    document.addEventListener("touchstart", e => { if (!e.target.closest || !e.target.closest("[data-tip]")) tip.style.opacity = 0; }, {passive: true});
+    const hit = (p, x, y, r, s) => { const c = el("circle", {cx: x, cy: y, r, fill: "transparent", "data-tip": 1}, p); const f = e => showTip(e.touches ? e.touches[0] : e, s); c.addEventListener("mousemove", f); c.addEventListener("click", f); c.addEventListener("touchstart", f, {passive: true}); c.addEventListener("mouseleave", () => tip.style.opacity = 0); };
+    const hm2 = m => { const d = new Date(base.getTime() + m * 60000); return d.getHours() + ":" + String(d.getMinutes()).padStart(2, "0"); };
+    function timeAxis(svg, top, hh){
+      el("rect", {x: X(7), y: top, width: X(35) - X(7), height: hh, fill: GL, opacity: .5}, svg);
+      [[8, "9時"], [20, "12"], [32, "15"], [44, "18"], [56, "21"], [68, "0"], [80, "3"], [92, "6"]].forEach(([s, t]) => txt(svg, X(s), top + hh + 13, t, {"text-anchor": "middle"}));
+      txt(svg, X(7) + 3, top + hh - 4, "日中"); txt(svg, X(40) + 3, top + hh - 4, "夜間");
+    }
+    function yGrid(svg, y, tk, f){ tk.forEach(v => { el("line", {x1: L, x2: W - R, y1: y(v), y2: y(v), stroke: v === 0 ? ZL : GL}, svg); txt(svg, L - 4, y(v) + 3, f(v), {"text-anchor": "end"}); }); }
+    // 積み上がり
+    if ($("aCum")) {
+      const svg = $("aCum"), H = 190, top = 6, hh = H - 26; svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+      const ser = {s: [[0, 0]], m: [[0, 0]]}; let a = 0, b = 0;
+      T.forEach(t => { if (man(t.k)) { b += t.v; ser.m.push([t.m / 15, b, t]); } else { a += t.v; ser.s.push([t.m / 15, a, t]); } });
+      const endS = Math.max(...T.map(t => t.m / 15), bars.length ? bars[bars.length - 1][0] + 1 : 0);
+      ser.s.push([endS, a]); ser.m.push([endS, b]);
+      const vs = [...ser.s, ...ser.m].map(p => p[1]); const tk = nice(Math.min(0, ...vs), Math.max(0, ...vs), 4); const lo = tk[0], hi = tk[tk.length - 1];
+      const y = v => top + hh * (hi - v) / (hi - lo);
+      timeAxis(svg, top, hh); yGrid(svg, y, tk, man10k);
+      [["s", C1], ["m", C2]].forEach(([k, col]) => {
+        const p = ser[k]; if (p.length <= 2 && !p.some(q => q[2])) return;
+        let d = `M${X(p[0][0])},${y(0)}`; for (let j = 1; j < p.length; j++) d += `H${X(p[j][0])}V${y(p[j][1])}`;
+        el("path", {d, fill: "none", stroke: col, "stroke-width": 2, "stroke-linejoin": "round"}, svg);
+        p.forEach(q => { if (!q[2]) return; const t = q[2]; el("circle", {cx: X(q[0]), cy: y(q[1]), r: 3.5, fill: col, stroke: BG, "stroke-width": 1.5}, svg);
+          hit(svg, X(q[0]), y(q[1]), 10, `${hm2(t.m)} ${nm(t.k)}<br>${t.sd > 0 ? "買" : "売"}${t.n} ${t.e.toLocaleString()}→${t.x.toLocaleString()}<br>${sg(t.v)}（累計 ${sg(q[1])}）`); });
+      });
+    }
+    // 値動き
+    if ($("aPx")) {
+      const svg = $("aPx"), H = 200, top = 6, hh = H - 26; svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+      const ps = bars.map(b => b[1]).concat(T.map(t => t.x), OP.map(o => o.e)); let pl = Math.min(...ps), ph = Math.max(...ps); if (ph - pl < 300) { const mid = (ph + pl) / 2; pl = mid - 150; ph = mid + 150; } const tk = nice(pl, ph, 4); const lo = tk[0], hi = tk[tk.length - 1];
+      const y = v => top + hh * (hi - v) / (hi - lo);
+      timeAxis(svg, top, hh); yGrid(svg, y, tk, v => v.toLocaleString());
+      let d = ""; bars.forEach((b, i) => { const gap = i && b[0] - bars[i - 1][0] > 2; d += (i && !gap ? "L" : "M") + X(b[0] + 1) + "," + y(b[1]); });
+      el("path", {d, fill: "none", stroke: css("--sub") || "#888", "stroke-width": 1.6}, svg);
+      T.forEach(t => { const col = man(t.k) ? C2 : C1; const x = X(t.m / 15), yy = y(t.x);
+        el("circle", {cx: x, cy: yy, r: man(t.k) ? 3 : 4.5, fill: col, stroke: BG, "stroke-width": 1.5}, svg);
+        hit(svg, x, yy, 10, `${hm2(t.m)} ${nm(t.k)} ${t.sd > 0 ? "買" : "売"}${t.n}<br>${t.e.toLocaleString()}→${t.x.toLocaleString()}　${sg(t.v)}`); });
+      OP.forEach(o => { if (!lastPx) return; const x = X(bars.length ? bars[bars.length - 1][0] + 1 : 0), yy = y(o.e);
+        el("line", {x1: L, x2: W - R, y1: yy, y2: yy, stroke: man(o.k) ? C2 : C1, "stroke-dasharray": "3 3", "stroke-width": 1}, svg);
+        txt(svg, L + 2, yy - 3, `${nm(o.k)} 建値 ${o.e.toLocaleString()}（含み ${sg(o.v)}）`, {class: "v"}); });
+    }
+    // 戦略別
+    {
+      const SN = {B: "①日中ブレイク", C: "②三尊", SW: "③スイング", US: "④米国寄り", BB: "⑤ボリンジャー", CE: "⑥トレンド", M: "⑦手動"};
+      const sn = k => SN[k] || nm(k);
+      const rows = ORD.filter(k => AG[k]).map(k => ({l: sn(k), v: AG[k].v, n: AG[k].n, m: man(k), h: false}))
+        .concat(OP.map(o => ({l: sn(o.k) + "（含み）", v: o.v, n: 0, m: man(o.k), h: true})));
+      const svg = $("aBy"), rh = 30, H = Math.max(1, rows.length) * rh + 20, LL = 112, RR = 4; svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+      const defs = el("defs", {}, svg); const pt = el("pattern", {id: "aHatch", width: 5, height: 5, patternUnits: "userSpaceOnUse", patternTransform: "rotate(45)"}, defs);
+      el("rect", {width: 5, height: 5, fill: C1, opacity: .3}, pt); el("line", {x1: 0, y1: 0, x2: 0, y2: 5, stroke: C1, "stroke-width": 2.5}, pt);
+      const mx = Math.max(1, ...rows.map(r => Math.abs(r.v))) * 1.05; const half = (W - LL - RR) / 2, x0 = LL + half, sx = v => x0 + half * v / mx;
+      el("line", {x1: x0, x2: x0, y1: 0, y2: H - 16, stroke: ZL}, svg);
+      if (!rows.length) txt(svg, W / 2, 20, "取引なし", {"text-anchor": "middle"});
+      rows.forEach((r, i) => { const yy = 4 + i * rh; txt(svg, LL - 6, yy + 15, r.l, {"text-anchor": "end", class: "v"});
+        const xa = Math.min(x0, sx(r.v)), w = Math.max(1, Math.abs(sx(r.v) - x0));
+        el("rect", {x: xa, y: yy + 4, width: w, height: 16, rx: 3, fill: r.h ? "url(#aHatch)" : (r.m ? C2 : C1)}, svg);
+        const pos = r.v >= 0, lab = sg(r.v) + (r.n ? `・${r.n}回` : ""); const inside = pos ? sx(r.v) + 70 > W : sx(r.v) - 70 < LL;
+        txt(svg, inside ? (pos ? x0 - 4 : x0 + 4) : (pos ? sx(r.v) + 4 : sx(r.v) - 4), yy + 16, lab, {"text-anchor": (pos !== inside) ? "start" : "end", class: "v"}); });
+    }
+    // 今月の日ごと
+    if ($("aDy")) {
+      const svg = $("aDy"), H = 170, top = 6, hh = H - 26; svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+      const vs = DY.flatMap(d => [d[1], d[2]]); const tk = nice(Math.min(0, ...vs), Math.max(0, ...vs), 4); const lo = tk[0], hi = tk[tk.length - 1];
+      const y = v => top + hh * (hi - v) / (hi - lo); yGrid(svg, y, tk, man10k);
+      const gw = (W - L - R) / Math.max(DY.length, 5), bw = Math.min(14, gw * .36);
+      const me = `${String(base.getMonth() + 1).padStart(2, "0")}${String(base.getDate()).padStart(2, "0")}`;
+      DY.forEach((d, i) => { const cx = L + gw * (i + .5); txt(svg, cx, top + hh + 13, +d[0].slice(0, 2) + "/" + +d[0].slice(2), {"text-anchor": "middle", class: d[0] === me ? "v" : ""});
+        [d[1], d[2]].forEach((v, j) => { if (!v) return; const x = cx + (j ? 1 : -bw - 1), y1 = Math.min(y(0), y(v)), hgt = Math.max(1, Math.abs(y(v) - y(0)));
+          el("rect", {x, y: y1, width: bw, height: hgt, rx: Math.min(3, hgt / 2), fill: j ? C2 : C1}, svg);
+          hit(svg, x + bw / 2, v >= 0 ? y1 : y1 + hgt, 12, `${+d[0].slice(0, 2)}/${+d[0].slice(2)} ${j ? "⑦手動" : "戦略"}<br>${sg(v)}`); }); });
+    }
+  }
+
   // ---------------- タブ ----------------
-  let tab = ["s", "m"].includes(q.get("tab")) ? q.get("tab") : "o";
+  let tab = ["s", "m", "a"].includes(q.get("tab")) ? q.get("tab") : "o";
+  // 分析のボタン（設定などのデータなし）から開いた時は、分析タブだけを出す（2026-11-10）
+  const onlyA = tab === "a" && !q.get("l");
+  if (onlyA) $("tabs").style.display = "none";
   function setTab(t){
     tab = t;
     document.querySelectorAll("#tabs button").forEach(b => b.classList.toggle("on", b.dataset.t === t));
     $("pageO").style.display = t === "o" ? "" : "none";
     $("pageS").style.display = t === "s" ? "" : "none";
     $("pageM").style.display = t === "m" ? "" : "none";
+    $("pageA").style.display = t === "a" ? "" : "none";
+    if (t === "a") {
+      $("fallback").style.display = "none";
+      if (tg && tg.MainButton) tg.MainButton.hide();
+      renderA(); return;
+    }
+    if (tg && tg.MainButton && tg.initDataUnsafe) tg.MainButton.show();
+    if (showFallback) $("fallback").style.display = "block";
     $("fallback").textContent = t === "o" ? "確認へ進む" : t === "s" ? "設定を反映する" : "変更を送る";
     if (tg && tg.MainButton) {
       tg.MainButton.setText("確認へ進む（まだ発注されません）");
@@ -665,7 +829,8 @@
     tg.MainButton.onClick(submit);
     tg.MainButton.show();
   }
-  if (!tg || !tg.initDataUnsafe || !tg.platform || tg.platform === "unknown") {
+  const showFallback = !tg || !tg.initDataUnsafe || !tg.platform || tg.platform === "unknown";
+  if (showFallback) {
     $("fallback").style.display = "block"; $("fallback").onclick = submit;
   }
   setTab(tab);
