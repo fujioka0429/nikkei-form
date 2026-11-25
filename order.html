@@ -110,7 +110,7 @@
     <div class="lbl"><span>枚数</span><span id="lotmax"></span></div>
     <div class="row">
       <button class="step" data-t="lots" data-d="-1">−</button>
-      <input type="number" id="lots" value="5" min="1" inputmode="numeric">
+      <input type="number" id="lots" value="4" min="1" inputmode="numeric">
       <button class="step" data-t="lots" data-d="1">＋</button>
     </div>
   </div>
@@ -132,7 +132,7 @@
     <div class="lbl"><span>損切りの幅（円）</span><span id="r5note"></span></div>
     <div class="row">
       <button class="step" data-t="stop" data-d="-50">−</button>
-      <input type="number" id="stop" value="400" step="50" inputmode="numeric">
+      <input type="number" id="stop" value="500" step="50" inputmode="numeric">
       <button class="step" data-t="stop" data-d="50">＋</button>
     </div>
     <div class="chips" id="stopchips"></div>
@@ -144,7 +144,7 @@
       <div class="lbl" style="margin-top:10px">追従の幅（最良値から何円離すか）</div>
       <div class="row">
         <button class="step" data-t="trail" data-d="-50">−</button>
-        <input type="number" id="trail" value="400" step="50" inputmode="numeric">
+        <input type="number" id="trail" value="500" step="50" inputmode="numeric">
         <button class="step" data-t="trail" data-d="50">＋</button>
       </div>
       <div class="lbl" style="margin-top:10px">刻み（何円有利になるごとに動かすか）</div>
@@ -559,7 +559,7 @@
     $("mtp").value = it.tp || 0;
     $("mtp").step = tpIsPx ? 5 : 50;
     $("mtrailOn").checked = !!it.tr;
-    $("mtrail").value = it.tr || 400; $("mstepw").value = it.tr ? (it.st || 5) : 50;
+    $("mtrail").value = it.tr || 500; $("mstepw").value = it.tr ? (it.st || 5) : 50;
     $("mtrailBox").style.display = it.tr ? "" : "none";
     // 候補
     $("mstopchips").innerHTML = ""; $("mlimitchips").innerHTML = "";
