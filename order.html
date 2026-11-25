@@ -144,7 +144,7 @@
       <div class="lbl" style="margin-top:10px">追従の幅（最良値から何円離すか）</div>
       <div class="row">
         <button class="step" data-t="trail" data-d="-50">−</button>
-        <input type="number" id="trail" value="500" step="50" inputmode="numeric">
+        <input type="number" id="trail" value="200" step="50" inputmode="numeric">
         <button class="step" data-t="trail" data-d="50">＋</button>
       </div>
       <div class="lbl" style="margin-top:10px">刻み（何円有利になるごとに動かすか）</div>
@@ -327,7 +327,7 @@
   if (r5) $("r5note").textContent = "直近の5分の値幅 平均 " + yen(r5) + "円";
   [...new Set(chips)].forEach(v => {
     const b = document.createElement("button"); b.textContent = yen(v) + "円";
-    b.onclick = () => { $("stop").value = v; if ($("trailOn").checked) $("trail").value = v; render(); };
+    b.onclick = () => { $("stop").value = v; render(); };   // 2026-11-26：追従は200のまま（損切りの候補で追従を変えない）
     $("stopchips").appendChild(b);
   });
 
@@ -559,7 +559,7 @@
     $("mtp").value = it.tp || 0;
     $("mtp").step = tpIsPx ? 5 : 50;
     $("mtrailOn").checked = !!it.tr;
-    $("mtrail").value = it.tr || 500; $("mstepw").value = it.tr ? (it.st || 5) : 50;
+    $("mtrail").value = it.tr || 200; $("mstepw").value = it.tr ? (it.st || 5) : 50;
     $("mtrailBox").style.display = it.tr ? "" : "none";
     // 候補
     $("mstopchips").innerHTML = ""; $("mlimitchips").innerHTML = "";
