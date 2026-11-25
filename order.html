@@ -110,7 +110,7 @@
     <div class="lbl"><span>枚数</span><span id="lotmax"></span></div>
     <div class="row">
       <button class="step" data-t="lots" data-d="-1">−</button>
-      <input type="number" id="lots" value="1" min="1" inputmode="numeric">
+      <input type="number" id="lots" value="5" min="1" inputmode="numeric">
       <button class="step" data-t="lots" data-d="1">＋</button>
     </div>
   </div>
@@ -132,7 +132,7 @@
     <div class="lbl"><span>損切りの幅（円）</span><span id="r5note"></span></div>
     <div class="row">
       <button class="step" data-t="stop" data-d="-50">−</button>
-      <input type="number" id="stop" value="200" step="50" inputmode="numeric">
+      <input type="number" id="stop" value="400" step="50" inputmode="numeric">
       <button class="step" data-t="stop" data-d="50">＋</button>
     </div>
     <div class="chips" id="stopchips"></div>
@@ -144,7 +144,7 @@
       <div class="lbl" style="margin-top:10px">追従の幅（最良値から何円離すか）</div>
       <div class="row">
         <button class="step" data-t="trail" data-d="-50">−</button>
-        <input type="number" id="trail" value="200" step="50" inputmode="numeric">
+        <input type="number" id="trail" value="400" step="50" inputmode="numeric">
         <button class="step" data-t="trail" data-d="50">＋</button>
       </div>
       <div class="lbl" style="margin-top:10px">刻み（何円有利になるごとに動かすか）</div>
@@ -559,7 +559,7 @@
     $("mtp").value = it.tp || 0;
     $("mtp").step = tpIsPx ? 5 : 50;
     $("mtrailOn").checked = !!it.tr;
-    $("mtrail").value = it.tr || 200; $("mstepw").value = it.tr ? (it.st || 5) : 50;
+    $("mtrail").value = it.tr || 400; $("mstepw").value = it.tr ? (it.st || 5) : 50;
     $("mtrailBox").style.display = it.tr ? "" : "none";
     // 候補
     $("mstopchips").innerHTML = ""; $("mlimitchips").innerHTML = "";
@@ -792,6 +792,10 @@
   // 分析のボタン（設定などのデータなし）から開いた時は、分析タブだけを出す（2026-11-10）
   const onlyA = tab === "a" && !q.get("l");
   if (onlyA) $("tabs").style.display = "none";
+  // 2026-11-25：使えないタブは出さない（注文中＝手動の建玉・指値がある時だけ、分析＝分析のデータがある時だけ）
+  const hasPA = (window.__PA_HASH || location.hash || "").replace(/^#/, "").split("&").some(x => x.startsWith("pa=") && x.length > 3) || !!q.get("pa");
+  if (!items.length) { document.querySelector('#tabs button[data-t="m"]').style.display = "none"; if (tab === "m") tab = "o"; }
+  if (!hasPA && !onlyA) { document.querySelector('#tabs button[data-t="a"]').style.display = "none"; if (tab === "a") tab = "o"; }
   function setTab(t){
     tab = t;
     document.querySelectorAll("#tabs button").forEach(b => b.classList.toggle("on", b.dataset.t === t));
