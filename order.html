@@ -41,6 +41,9 @@
   .pxg button.now{border-color:var(--accent)}
   .pxg button.on{background:var(--accent);color:var(--accent-fg)}
   .pxg button.on small{color:inherit}
+  .tfs{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:8px}
+  .tfs button{border:none;border-radius:8px;padding:5px 0;background:var(--bg);color:var(--sub);font-size:12px;font-weight:600}
+  .tfs button.on{background:var(--accent);color:var(--accent-fg)}
   .chips button{border:none;border-radius:16px;padding:6px 12px;background:var(--bg);color:var(--fg);font-size:13px}
   .chips button.on{background:var(--accent);color:var(--accent-fg)}
   .sw{display:flex;align-items:center;justify-content:space-between}
@@ -106,6 +109,7 @@
 
   <div class="card" id="pxcard" style="display:none">
     <div class="lbl"><span>値段の候補（タップで指値に）</span><span id="atrnote"></span></div>
+    <div class="tfs" id="tfs"></div>
     <div class="pxg" id="pxg"></div>
   </div>
 
@@ -301,7 +305,17 @@
   let px = +q.get("px") || 0, ts = +q.get("ts") || 0, src = q.get("src") || "now", liveOk = null, liveAt = 0;
   const r5 = +q.get("r5") || 0, maxLots = +q.get("max") || 5;
   const mult = +q.get("mult") || 100, LP = q.get("lp") || "";
-  let atr = +q.get("atr") || 0;   // 2026-11-26：15分足のATR（値段の候補に使う）
+  // 2026-11-26：ATR（値段の候補に使う）。atr=15分,1時間,4時間,日足（円）。数字1つだけなら15分足
+  const TF = [["m15", "15分足"], ["h1", "1時間足"], ["h4", "4時間足"], ["d1", "日足"]];
+  let atrs = {};
+  const setAtrs = v => {
+    const a = Array.isArray(v) ? v : String(v || "").split(",");
+    const o = {}; TF.forEach(([k], i) => { const n = +a[i]; if (n > 0) o[k] = n; });
+    if (Object.keys(o).length) atrs = o;
+  };
+  setAtrs(q.get("atr"));
+  let tf = "m15";
+  try { const s = localStorage.getItem("pxTf"); if (s && TF.some(([k]) => k === s)) tf = s; } catch(e) {}
   const $ = id => document.getElementById(id);
   const yen = n => Math.round(n).toLocaleString("ja-JP");
   const r50 = n => Math.max(50, Math.round(n / 50) * 50);
@@ -361,12 +375,22 @@
   });
   ["lots", "limit", "stop", "trail", "stepw", "tp"].forEach(id => $(id).addEventListener("input", render));
 
-  // 値段の候補（2026-11-26）：現在値と、15分足ATRの±1・±2倍。タップすると指値にして、その値段を入れる
+  // 値段の候補（2026-11-26）：現在値と、選んだ足のATRの±1・±2倍。タップすると指値にして、その値段を入れる
   const PXK = [-2, -1, 0, 1, 2];
   function renderPx(){
+    if (!atrs[tf]) tf = TF.map(([k]) => k).find(k => atrs[k]) || tf;
+    const atr = atrs[tf] || 0;
     if (!px || !atr) { $("pxcard").style.display = "none"; return; }
     $("pxcard").style.display = "";
-    $("atrnote").textContent = "15分足ATR " + yen(atr) + "円";
+    $("atrnote").textContent = "ATR " + yen(atr) + "円";
+    $("tfs").innerHTML = "";
+    TF.forEach(([k, nm]) => {
+      if (!atrs[k]) return;
+      const b = document.createElement("button"); b.textContent = nm;
+      if (k === tf) b.classList.add("on");
+      b.onclick = () => { tf = k; try { localStorage.setItem("pxTf", k); } catch(e) {} haptic(); renderPx(); };
+      $("tfs").appendChild(b);
+    });
     const cur = kind === "lmt" ? Math.round(+$("limit").value) : null;
     $("pxg").innerHTML = "";
     PXK.forEach(k => {
@@ -886,7 +910,7 @@
       const d = await r.json();
       if (d && d.px) {
         px = d.px; ts = d.ts || ts; src = d.src || src; liveOk = true; liveAt = Date.now();
-        if (d.atr) atr = d.atr;
+        if (d.atr) setAtrs(d.atr);
       }
     } catch(e) {
       if (Date.now() - liveAt > 10000) liveOk = false;
